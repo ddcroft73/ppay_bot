@@ -12,16 +12,19 @@ DRIVER_LOC = "C:\\Program Files\\Google\\Chrome\\Application\\96.0.4664.110\\chr
 PAYLOAD = "./payload.json"
 
 
-balance_before_pay = ""
-balance_after_pay = ""
-balance_rears = ""
 
-def start_bot(data: dict, option: str="") -> None:
+def start_bot(option: str="") -> None:
     # decide if headless or normal
-    if option == "--headless":
-        chrome_options = Options()
-        chrome_options.add_argument(option)
-        driver = webdriver.Chrome(executable_path=DRIVER_LOC, options=chrome_options)  
+    if option == "--passbot":
+        chrome_options = webdriver.ChromeOptions() 
+        chrome_options.add_argument("--disable-blink-features=AutomationControlled")
+        chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
+        chrome_options.add_experimental_option('useAutomationExtension', False)
+        driver = webdriver.Chrome(executable_path=DRIVER_LOC, options=chrome_options) 
+        driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+        driver.execute_cdp_cmd('Network.setUserAgentOverride', {"userAgent": 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.53 Safari/537.36'})
+        print(driver.execute_script("return navigator.userAgent;")) 
+        driver.refresh()       
     else:        
         driver = webdriver.Chrome(executable_path=DRIVER_LOC)  
         driver.maximize_window()
@@ -34,7 +37,22 @@ def shutdown(driver: object) -> None:
     driver.close()
 
 def wait(d:webdriver ,delay: int, by_element: str, wait_for) -> None:
-    WebDriverWait(d, delay).until(EC.presence_of_element_located((by_element, wait_for)))    
+    WebDriverWait(d, delay).until(EC.presence_of_element_located((by_element, wait_for)))  
+
+
+# function attmepts to wait for each element passed in before acessing it
+def wait_and_find(delay: int, doing: str,  by_element: str, wait_for: str, send_data: str=None) -> str:
+    result: str=None 
+    WebDriverWait(drv, delay).until(EC.presence_of_element_located((by_element, wait_for)))
+
+    match doing:
+        case "send":
+            drv.find_element(by_element, wait_for).send_keys(send_data)
+        case "click":
+            drv.find_element(by_element, wait_for).click()
+        case "query":
+            result = drv.find_element(by_element, wait_for)
+    return result      
      
 def get_userdata() -> dict:
     with open(PAYLOAD, "r") as infile:
@@ -42,47 +60,37 @@ def get_userdata() -> dict:
     return data
 
 # searches user DB for my info and returns my link
-def goto_mypage(d, data: dict) -> str:
+def goto_mypage() -> str:
     name_xpath = '//*[@id="name"]'
     last_xpath = '//*[@id="last_name"]'
     submit_xpath = "/html/body/div/div/div/section/div[1]/div[2]/div/form/div[6]/div/button"
     
     # wait for the forms to load
     # fill in the data
-    d.find_element(By.XPATH, name_xpath).send_keys(data['first'])
-    d.find_element(By.XPATH, last_xpath).send_keys(data['last'])
-    d.find_element(By.XPATH, submit_xpath).click()    
-    # wait for page to load
-    wait(d, 8, By.LINK_TEXT, data['my_link_text'])
-    # load submit payment page
-    d.find_element(By.LINK_TEXT, data['my_link_text']).click()
+    wait_and_find(3, 'send', By.XPATH, name_xpath, data['first'])
+    wait_and_find(3, 'send', By.XPATH, last_xpath, data['last'])
+    wait_and_find(3, 'click', By.XPATH, submit_xpath)
+    wait_and_find(3, 'click', By.LINK_TEXT, data['my_link_text'])
 
 
 
 # fill sin the relevent data and submits payment
-def submit_amount(d, user_data: dict) -> tuple:
+def submit_amount() -> None:
     payment_link_xpath = '/html/body/div/div/div/section/p[1]/a'
     payment_amount_xpath = '//*[@id="paymentAmount"]'
     continue_butt_xpath = '//*[@id="frmPayment"]/div/div/fieldset/div/button[2]'    
     total_arrearge_xpath = '//*[@id="details"]/tbody/tr[6]/td'
     balance_owed_xpath = '//*[@id="details"]/tbody/tr[7]/td'
     
-    #navigate to the personal info page
-    d.find_element(By.XPATH, payment_link_xpath).click() 
-     # wait for page to load, make sure the payment button is there.
-    wait(d, 8, By.XPATH, continue_butt_xpath)
-    d.find_element(By.XPATH, payment_amount_xpath).send_keys(user_data['payment_amt'])
+    wait_and_find(3, 'click', By.XPATH, payment_link_xpath)
+    wait_and_find(10, 'send', By.XPATH, payment_amount_xpath, data['payment_amt'])
+    el = wait_and_find(3, 'query', By.XPATH, total_arrearge_xpath)
+    balance_rears = el.text
+    el = wait_and_find(3, 'query', By.XPATH, balance_owed_xpath)
+    balance_before_pay = el.text
+    wait_and_find(3, 'click', By.XPATH, continue_butt_xpath)
 
-    # get data about balances
-    el = d.find_element(By.XPATH, total_arrearge_xpath)
-    rears = el.text
-    el = d.find_element(By.XPATH, balance_owed_xpath)
-    before_pay = el.text
-
-    d.find_element(By.XPATH, continue_butt_xpath).click() 
-    return rears, before_pay
-
-def submit_user_info(d, data: dict) -> None:
+def submit_user_info() -> None:
     #name_xpath = '//*[@id="CustomerInfo_FirstName"]'
     #last_xpath = '//*[@id="CustomerInfo_LastName"]'
     address_xpath = '//*[@id="CustomerInfo_Address1"]'
@@ -91,20 +99,17 @@ def submit_user_info(d, data: dict) -> None:
     zip_xpath = '//*[@id="CustomerInfo_Zip"]'
     phone_xpath = '//*[@id="Phone"]'
     email_xpath = '//*[@id="Email"]'
-    
     next_button_xpath = '//*[@id="bntNextCustomerInfo"]'
-    # wait for entore page to load. focus on the "next" button
-    wait(d, 6, By.XPATH, next_button_xpath)
-    #fill in user info
-    d.find_element(By.XPATH, address_xpath).send_keys(data['address'])
-    d.find_element(By.XPATH, city_xpath).send_keys(data['city'])
-    d.find_element(By.XPATH, zip_xpath).send_keys(data['zip'])
-    d.find_element(By.XPATH, phone_xpath).send_keys(data['phone'])
-    d.find_element(By.XPATH, email_xpath).send_keys(data['email'])
-    d.find_element(By.XPATH, state_xpath).send_keys('SC')      
-    d.find_element(By.XPATH, next_button_xpath).click() 
+    
+    wait_and_find(10, 'send', By.XPATH, address_xpath, data['address'])
+    wait_and_find(10, 'send', By.XPATH, city_xpath, data['city'])
+    wait_and_find(10, 'send', By.XPATH, zip_xpath, data['zip'])
+    wait_and_find(10, 'send', By.XPATH, phone_xpath, data['phone'])
+    wait_and_find(10, 'send', By.XPATH, email_xpath, data['email'])
+    wait_and_find(10, 'send', By.XPATH, state_xpath, data['state'])
+    wait_and_find(10, 'click', By.XPATH, next_button_xpath)   
 
-def submit_payment(d, data) -> None:
+def submit_payment() -> None:
     card_num_xpath = '//*[@id="CCCardNumber"]'
     card_exp_month_xpath = '//*[@id="CCExpirationMonth"]'
     card_exp_year_xpath = '//*[@id="CCExpirationYear"]'
@@ -113,17 +118,13 @@ def submit_payment(d, data) -> None:
     next_xpath = '//*[@id="bntNextPaymentInfo"]'
     submit_xpath = '//*[@id="submitPayment"]'
 
-    #wait fot page to load
-    wait(d, 6, By.XPATH, next_xpath)
-    d.find_element(By.XPATH, card_num_xpath).send_keys(data['card_num'])
-    d.find_element(By.XPATH, card_exp_month_xpath).send_keys(data['card_exp_month'])
-    d.find_element(By.XPATH, card_exp_year_xpath).send_keys(data['card_exp_year'])
-    d.find_element(By.XPATH, card_csv_xpath).send_keys(data['csv'])
-    d.find_element(By.XPATH, name_xpath).send_keys(data['first'] + " " + data['last'])      
-    d.find_element(By.XPATH, next_xpath).click()     
-    # just to make sure the button is there
-    wait(d, 6, By.XPATH, submit_xpath)
-    d.find_element(By.XPATH, submit_xpath).click() 
+    wait_and_find(10, 'send', By.XPATH, card_num_xpath, data['card_num'])
+    wait_and_find(10, 'send', By.XPATH, card_exp_month_xpath, data['card_exp_month'])
+    wait_and_find(10, 'send', By.XPATH, card_exp_year_xpath, data['card_exp_year'])
+    wait_and_find(10, 'send', By.XPATH, card_csv_xpath, data['csv'])
+    wait_and_find(10, 'send', By.XPATH, name_xpath, data['first'] + " " + data['last'])
+    wait_and_find(10, 'click', By.XPATH, next_xpath)      
+#    wait_and_find(6, 'click', By.XPATH, submit_xpath)      
 
 
 
@@ -133,7 +134,7 @@ def format_details(before: str, rears: str, after: str) -> str:
     return
 
 
-def send_email(data: dict, msg: str) -> None:    
+def send_email(msg: str) -> None:    
     port = 587  # For starttls
     smtp_server = "smtp.gmail.com"
     sender_email = data['out_email']
@@ -148,14 +149,18 @@ def send_email(data: dict, msg: str) -> None:
 
 if __name__ == '__main__':
 
+    balance_before_pay = ""
+    balance_after_pay = ""
+    balance_rears = ""  
+    
     data = get_userdata()
-    drv = start_bot(data)
-    goto_mypage(drv, data)     
-    submit_amount(drv, data)   
-
-    submit_user_info(drv, data)
-    submit_payment(drv, data)
-    shutdown(drv)  # SHutdown the webdriver
+    drv = start_bot("--passbot")
+    goto_mypage()     
+    submit_amount()   
+    submit_user_info()
+    submit_payment()
+    print(balance_before_pay, balance_rears)
+#    shutdown()  # SHutdown the webdriver
 
    # message = format_details(balance_before_pay, balance_rears, balance_after_pay)
    # send email of payment info
