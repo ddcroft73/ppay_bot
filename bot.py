@@ -12,7 +12,8 @@ DRIVER_LOC = "C:\\Program Files\\Google\\Chrome\\Application\\96.0.4664.110\\chr
 PAYLOAD = "./payload.json"
 
 
-
+# startbot, toying with the idea of a CLI interface and launchng the bot via cron at
+# the same day each month.
 def start_bot(option: str="") -> None:
     # decide if headless or normal
     if option == "--passbot":
@@ -33,12 +34,6 @@ def start_bot(option: str="") -> None:
     driver.get(data["start"])       
     return driver
     
-def shutdown(driver: object) -> None:
-    driver.close()
-
-def wait(d:webdriver ,delay: int, by_element: str, wait_for) -> None:
-    WebDriverWait(d, delay).until(EC.presence_of_element_located((by_element, wait_for)))  
-
 
 # function attmepts to wait for each element passed in before acessing it
 def wait_and_find(delay: int, doing: str,  by_element: str, wait_for: str, send_data: str=None) -> str:
@@ -160,7 +155,7 @@ if __name__ == '__main__':
     submit_user_info()
     submit_payment()
     print(balance_before_pay, balance_rears)
-#    shutdown()  # SHutdown the webdriver
+#    drv.close()  
 
    # message = format_details(balance_before_pay, balance_rears, balance_after_pay)
    # send email of payment info
