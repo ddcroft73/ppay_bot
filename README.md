@@ -8,3 +8,5 @@ Not much to say about this. A quick tool to fill a need. I had no prior knowledg
 ## To Do:
 - Learn more about Selinium mostly about waiting and time outs, not sure if im WebDriverWait... ing enough or right.
 - Test more and implement a balancer to inform me of what's left to pay.
+- implement a cLI to pass in headless option and amount to be paid.
+- Have the bot email me if a payment fails, or script fails. Really shouldn't be an issue. It's really so simple.
