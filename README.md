@@ -1,12 +1,3 @@
 # ppay_bot
 
-A simple bot ran by Selenium that pays an important bill. Missing the payload json. Bot works pretty well, but does not work 100% of the time. Some TimeOut issues and I stopped testing because it will probably cause some interest I don't want. 
-Works well enough and will employ with cron to launch once a month.
-
-Not much to say about this. A quick tool to fill a need. I had no prior knowledge of Selenium before I wrote this and I did it in about an hour and a half.
-
-## To Do:
-- Learn more about Selinium mostly about waiting and time outs, not sure if im WebDriverWait... ing enough or right.
-- Test more and implement a balancer to inform me of what's left to pay.
-- implement a cLI to pass in headless option and amount to be paid.
-- Have the bot email me if a payment fails, or script fails. Really shouldn't be an issue. It's really so simple.
+A simple bot ran by Selenium that pays an important bill. Missing the payload json. Bot works pretty well, Refactored the code so that a single call takes care of WebDriverWait and find_element. THe code is 100% cleaner and works 95$ of the time, only problem being amy networl or server issues
