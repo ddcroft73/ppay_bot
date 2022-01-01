@@ -2,40 +2,41 @@
 
 import json, smtplib, ssl
 from selenium import webdriver 
-from selenium.webdriver.chrome.options import Options
+
+from webdriver_manager.chrome import ChromeDriverManager
+from selenium.webdriver.chrome.service import Service
+
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
           
-
-DRIVER_LOC = "C:\\Program Files\\Google\\Chrome\\Application\\96.0.4664.110\\chromedriver.exe"
 PAYLOAD = "./payload.json"
 
+def start_bot(headless: bool=False) -> None:
+    chrome_options = webdriver.ChromeOptions()     
 
-# startbot, toying with the idea of a CLI interface and launchng the bot via cron at
-# the same day each month.
-def start_bot(option: str="") -> None:
-    # decide if headless or normal
-    if option == "--passbot":
-        chrome_options = webdriver.ChromeOptions() 
-        chrome_options.add_argument("--disable-blink-features=AutomationControlled")
-        chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
-        chrome_options.add_experimental_option('useAutomationExtension', False)
-        driver = webdriver.Chrome(executable_path=DRIVER_LOC, options=chrome_options) 
-        driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
-        driver.execute_cdp_cmd('Network.setUserAgentOverride', {"userAgent": 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.53 Safari/537.36'})
-        print(driver.execute_script("return navigator.userAgent;")) 
-        driver.refresh()       
-    else:        
-        driver = webdriver.Chrome(executable_path=DRIVER_LOC)  
-        driver.maximize_window()
-        driver.refresh()       
+    if headless: chrome_options.add_argument("--headless")
+    # anit_ automatin, But noting gets them all. TO remain even more incognito use requests, urlip, urlib2, cookielib
+    chrome_options.add_argument("--disable-blink-features=AutomationControlled")
+    chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
+    chrome_options.add_experimental_option('useAutomationExtension', False)
+    srv=Service(ChromeDriverManager().install())
 
-    driver.get(data["start"])       
+    driver = webdriver.Chrome(service=srv, options=chrome_options) 
+    # try to keep the webdriver from setting off automation alarms. Doesnt always work.
+    driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+    driver.execute_cdp_cmd(
+        'Network.setUserAgentOverride', {
+         "userAgent": 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.53 Safari/537.36'
+         })
+    driver.refresh()        
+    driver.get(data["start"])     
+
     return driver
     
-
-# function attmepts to wait for each element passed in before acessing it
+# function attmepts to wait for each element passed in before acessing it, 
+# adjust the times for some timeouts. Some my stil time out but compared to not using WebDriverWait()
+# before sending or clicking it seems to work much better.
 def wait_and_find(delay: int, doing: str,  by_element: str, wait_for: str, send_data: str=None) -> str:
     result: str=None 
     WebDriverWait(drv, delay).until(EC.presence_of_element_located((by_element, wait_for)))
@@ -48,11 +49,13 @@ def wait_and_find(delay: int, doing: str,  by_element: str, wait_for: str, send_
         case "query":
             result = drv.find_element(by_element, wait_for)
     return result      
-     
+
+#load the data to run the site into a dictinoary     
 def get_userdata() -> dict:
     with open(PAYLOAD, "r") as infile:
         data = json.load(infile)
     return data
+
 
 # searches user DB for my info and returns my link
 def goto_mypage() -> str:
@@ -66,8 +69,6 @@ def goto_mypage() -> str:
     wait_and_find(3, 'send', By.XPATH, last_xpath, data['last'])
     wait_and_find(3, 'click', By.XPATH, submit_xpath)
     wait_and_find(3, 'click', By.LINK_TEXT, data['my_link_text'])
-
-
 
 # fill sin the relevent data and submits payment
 def submit_amount() -> None:
@@ -86,8 +87,6 @@ def submit_amount() -> None:
     wait_and_find(3, 'click', By.XPATH, continue_butt_xpath)
 
 def submit_user_info() -> None:
-    #name_xpath = '//*[@id="CustomerInfo_FirstName"]'
-    #last_xpath = '//*[@id="CustomerInfo_LastName"]'
     address_xpath = '//*[@id="CustomerInfo_Address1"]'
     city_xpath = '//*[@id="CustomerInfo_City"]'
     state_xpath = '//*[@id="CustomerInfo_State"]'
@@ -122,12 +121,11 @@ def submit_payment() -> None:
 #    wait_and_find(6, 'click', By.XPATH, submit_xpath)      
 
 
-
+# TODO:
 # formats a nice message froom the dict gatered from the last page
 def format_details(before: str, rears: str, after: str) -> str:
     print(f"{before} is owed before pay.\n{after} is owed after the payment.\n{rears} is what you're behind.")
     return
-
 
 def send_email(msg: str) -> None:    
     port = 587  # For starttls
@@ -142,20 +140,27 @@ def send_email(msg: str) -> None:
         server.login(sender_email, password)
         server.sendmail(sender_email, receiver_email, msg)
 
+#END TODO:
+
+
 if __name__ == '__main__':
 
     balance_before_pay = ""
     balance_after_pay = ""
-    balance_rears = ""  
-    
+    balance_rears = ""      
+
+    # start the webdriver and load the payload data
     data = get_userdata()
-    drv = start_bot("--passbot")
+    drv = start_bot(headless=False)
+
+    # call individual functions to take care of each page
     goto_mypage()     
     submit_amount()   
     submit_user_info()
     submit_payment()
-    print(balance_before_pay, balance_rears)
-#    drv.close()  
+
+#    print(balance_before_pay, balance_rears)
+#    drv.close()  # SHutdown the webdriver
 
    # message = format_details(balance_before_pay, balance_rears, balance_after_pay)
    # send email of payment info
